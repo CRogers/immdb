@@ -45,8 +45,11 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Util.fs" />
     <Compile Include="AsyncEx.fs" />
     <Compile Include="Network.fs" />
+    <Compile Include="Crypto.fs" />
+    <Compile Include="Node.fs" />
     <None Include="App.config" />
     <Compile Include="Program.fs" />
   </ItemGroup>

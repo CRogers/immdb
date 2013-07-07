@@ -3,6 +3,7 @@
 open System
 open System.Net
 open System.Net.Sockets
+open Util
 
 let uncurry f (a,b) = f a b
 
@@ -27,45 +28,60 @@ type TcpManager = {
     mutable TcpClients: Map<IPEndPointC,TcpClient>
 }
 
+let nullTcpManager = { LocalEndPoint = null; TcpListener = null; TcpClients = Map.empty }
+
 let getIPEndPointFromHostname hostname port = async {
     let! addrs = Async.AwaitTask <| Dns.GetHostAddressesAsync(hostname)
     return IPEndPointC(new IPEndPoint(addrs.[0], port))
 }
 
-let makeTcpManager hostname port = async {
+let makeTcpManager hostname port acceptClientFunc = async {
     let! localEndPoint = getIPEndPointFromHostname hostname port
 
     let tcpl = new TcpListener(localEndPoint)
     tcpl.Start()
     
-    let tcps = { LocalEndPoint = localEndPoint; TcpListener = tcpl; TcpClients = Map.empty }
+    let tcpm = { LocalEndPoint = localEndPoint; TcpListener = tcpl; TcpClients = Map.empty }
 
     Async.Start <| async {
         while true do
             let client = tcpl.AcceptTcpClient()
             let remoteEndPoint = IPEndPointC(client.Client.RemoteEndPoint :?> IPEndPoint)
-            tcps.TcpClients <- tcps.TcpClients.Add(remoteEndPoint, client)
+            tcpm.TcpClients <- tcpm.TcpClients.Add(remoteEndPoint, client)
+
+            Async.Start <| acceptClientFunc tcpm client remoteEndPoint
     }
 
-    return tcps
+    return tcpm
 }
 
-let sendMsg tcps ipe bytes =
-    let client = match Map.tryFind ipe tcps.TcpClients with
+let sendBytes tcpm ipe bytes =
+    let client = match Map.tryFind ipe tcpm.TcpClients with
         | Some tcpc -> tcpc
         | None ->
             let c = new TcpClient()
             c.Connect(ipe)
+            tcpm.TcpClients <- tcpm.TcpClients.Add(ipe, c)
             c
 
     let ns = client.GetStream()
-    ns.AsyncWrite(Seq.toArray bytes)
+    ns.AsyncWrite bytes
 
-let recvMsg tcps ipe nbytes =
-    let client = match Map.tryFind ipe tcps.TcpClients with
+let recvBytes tcpm ipe nbytes =
+    let client = match Map.tryFind ipe tcpm.TcpClients with
         | Some tcpc -> tcpc
-        | None -> raise <| Exception(sprintf "Cannot recieve message: %s is not connected to endpoint %s" (tcps.LocalEndPoint.ToString()) (ipe.ToString()))
+        | None -> raise <| Exception(sprintf "Cannot recieve message: %s is not connected to endpoint %s" (tcpm.LocalEndPoint.ToString()) (ipe.ToString()))
 
     let ns = client.GetStream()
-    ns.AsyncRead(nbytes)
+    ns.AsyncRead nbytes
+
+let sendMsg tcpm ipe bytes =
+    let msg = Seq.append (intToBytes <| Seq.length bytes) bytes
+    sendBytes tcpm ipe <| Seq.toArray msg
+
+let recvMsg tcpm ipe = async {
+    let! lengthBytes = recvBytes tcpm ipe 4
+    let length = bytesToInt lengthBytes
+    return! recvBytes tcpm ipe length
+}
 
