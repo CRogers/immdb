@@ -1,9 +1,12 @@
 ﻿module Program
 
+open Logging
 open Network
 open Node
+open System
 open System.Text
 open System.Threading
+open Util
 
 [<EntryPoint>]
 let main argv =
@@ -18,6 +21,13 @@ let main argv =
 
         do! connectToPeer a bep
         do! connectToPeer b aep
+
+        Logger.Log LogLevel.Network "Send test"
+        
+        do! sendMsgPeer b a.Id MsgType.Connect (stringToBytes "Hello, World!")
+        let! msgType, data = recvMsgPeer a b.Id        
+
+        printfn "%d:%s" (int msgType) (bytesToString data)
     }   
 
     0

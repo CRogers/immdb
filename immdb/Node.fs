@@ -1,6 +1,7 @@
 ﻿module Node
 
 open Crypto
+open Logging
 open Network
 open System.Net.Sockets
 open Util
@@ -33,14 +34,21 @@ let nullNode = { Id = null; TcpManager = nullTcpManager; Peers = Map.empty }
 let findPeer node id = Map.find id node.Peers
 
 /// Send a length prefixed message to a peer.
-let sendBytesPeer node id bytes =
+let sendBytesPeer node id bytes = async {
     let peer = findPeer node id
-    sendMsg node.TcpManager peer.IPEndPoint bytes
+    Logger.Log LogLevel.Network <| sprintf "%s sending data to %s..." (node.Id) (peer.Id)
+    do! sendMsg node.TcpManager peer.IPEndPoint bytes
+    Logger.Log LogLevel.Network "...done!"
+}
 
 /// Recieve a length prefixed message from a peer.
-let recvBytesPeer node id =
+let recvBytesPeer node id = async {
     let peer = findPeer node id
-    recvMsg node.TcpManager peer.IPEndPoint
+    Logger.Log LogLevel.Network <| sprintf "%s recieving data from %s..." (node.Id) (peer.Id)
+    let! res = recvMsg node.TcpManager peer.IPEndPoint
+    Logger.Log LogLevel.Network "...done!"
+    return res
+}
 
 /// Send a length and message type prefixed message to a peer.
 let sendMsgPeer node id (msgType:MsgType) bytes =
