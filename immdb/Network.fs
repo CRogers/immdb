@@ -55,6 +55,7 @@ let makeTcpManager hostname port acceptClientFunc = async {
     return tcpm
 }
 
+/// Send a raw set of bytes to an IP endpoint.
 let sendBytes tcpm ipe bytes =
     let client = match Map.tryFind ipe tcpm.TcpClients with
         | Some tcpc -> tcpc
@@ -67,6 +68,7 @@ let sendBytes tcpm ipe bytes =
     let ns = client.GetStream()
     ns.AsyncWrite bytes
 
+/// Recieve a number of bytes from an IP endpoint
 let recvBytes tcpm ipe nbytes =
     let client = match Map.tryFind ipe tcpm.TcpClients with
         | Some tcpc -> tcpc
@@ -75,10 +77,12 @@ let recvBytes tcpm ipe nbytes =
     let ns = client.GetStream()
     ns.AsyncRead nbytes
 
+/// Send a set of bytes where the length is prefixed.
 let sendMsg tcpm ipe bytes =
     let msg = Seq.append (intToBytes <| Seq.length bytes) bytes
     sendBytes tcpm ipe <| Seq.toArray msg
 
+/// Recieve a length prefixed message and return the bit after the length.
 let recvMsg tcpm ipe = async {
     let! lengthBytes = recvBytes tcpm ipe 4
     let length = bytesToInt lengthBytes

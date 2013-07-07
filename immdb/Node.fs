@@ -32,18 +32,22 @@ let nullNode = { Id = null; TcpManager = nullTcpManager; Peers = Map.empty }
 
 let findPeer node id = Map.find id node.Peers
 
+/// Send a length prefixed message to a peer.
 let sendBytesPeer node id bytes =
     let peer = findPeer node id
     sendMsg node.TcpManager peer.IPEndPoint bytes
 
+/// Recieve a length prefixed message from a peer.
 let recvBytesPeer node id =
     let peer = findPeer node id
     recvMsg node.TcpManager peer.IPEndPoint
 
+/// Send a length and message type prefixed message to a peer.
 let sendMsgPeer node id (msgType:MsgType) bytes =
     let bs = Seq.toArray <| Seq.append [byte msgType] bytes
     sendBytesPeer node id bs
 
+/// Recieve a length and message type prefixed message from a peer.
 let recvMsgPeer node id = async {
     let! msg = recvBytesPeer node id
     let msgType = enum<MsgType>(int32 msg.[0])
